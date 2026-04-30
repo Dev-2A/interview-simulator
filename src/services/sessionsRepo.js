@@ -8,17 +8,18 @@ import { SESSION_STATUS } from "../constants/interview";
 
 /**
  * 새 세션 생성.
- * @param {Object} cfg
- * @param {string} cfg.jobRole       — 직무 (예: "백엔드 개발자")
- * @param {string} cfg.companyType   — 회사 타입 (예: "스타트업")
- * @param {string[]} cfg.techStack   — 기술 스택 배열 (예: ["Python", "FastAPI"])
- * @returns {Promise<number>} 생성된 세션 ID
  */
-export async function createSession({ jobRole, companyType, techStack }) {
+export async function createSession({
+  jobRole,
+  companyType,
+  techStack,
+  experienceLevel,
+}) {
   return db.sessions.add({
     jobRole,
     companyType,
     techStack: techStack ?? [],
+    experienceLevel: experienceLevel ?? null,
     status: SESSION_STATUS.IN_PROGRESS,
     startedAt: Date.now(),
     endedAt: null,

@@ -4,6 +4,7 @@ import { HashRouter } from "react-router-dom";
 import "./index.css";
 import App from "./App.jsx";
 import { ToastProvider } from "./components/ui/ToastContext";
+import { ApiKeyProvider } from "./hooks/useApiKey";
 
 import "./services/db";
 
@@ -25,9 +26,11 @@ if (import.meta.env.DEV) {
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <HashRouter>
-      <ToastProvider>
-        <App />
-      </ToastProvider>
+      <ApiKeyProvider>
+        <ToastProvider>
+          <App />
+        </ToastProvider>
+      </ApiKeyProvider>
     </HashRouter>
   </StrictMode>,
 );

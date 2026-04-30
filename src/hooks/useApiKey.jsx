@@ -1,22 +1,27 @@
-import { useCallback, useEffect, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import {
   getApiKey,
-  setApiKey as saveApiKey,
+  setApiKey as saveApiKeyInDb,
   clearApiKey as removeApiKeyInDb,
   getModel,
-  setModel as saveModel,
+  setModel as saveModelInDb,
 } from "../services/settingsRepo";
 
+const ApiKeyContext = createContext(null);
+
 /**
- * IndexedDB에 저장된 API 키와 모델을 관리하는 훅.
+ * IndexedDB에 저장된 API 키와 모델을 전역 상태로 관리한다.
  *
- * 반환값:
- * - apiKey: 저장된 키 (없으면 null)
- * - model: 저장된 모델 ID (없으면 DEFAULT_MODEL)
- * - loading: 초기 로딩 여부
- * - saveKey(newKey), clearKey(), changeModel(modelId)
+ * 핵심: 모든 useApiKey() 호출이 같은 Context를 공유하므로,
+ * 한 컴포넌트에서 saveKey/clearKey를 호출하면 다른 모든 소비자가 즉시 리렌더된다.
  */
-export function useApiKey() {
+export function ApiKeyProvider({ children }) {
   const [apiKey, setApiKeyState] = useState(null);
   const [model, setModelState] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -37,7 +42,7 @@ export function useApiKey() {
   }, []);
 
   const saveKey = useCallback(async (newKey) => {
-    await saveApiKey(newKey);
+    await saveApiKeyInDb(newKey);
     setApiKeyState(newKey);
   }, []);
 
@@ -47,16 +52,27 @@ export function useApiKey() {
   }, []);
 
   const changeModel = useCallback(async (modelId) => {
-    await saveModel(modelId);
+    await saveModelInDb(modelId);
     setModelState(modelId);
   }, []);
 
-  return { apiKey, model, loading, saveKey, clearKey, changeModel };
+  const value = { apiKey, model, loading, saveKey, clearKey, changeModel };
+
+  return (
+    <ApiKeyContext.Provider value={value}>{children}</ApiKeyContext.Provider>
+  );
+}
+
+export function useApiKey() {
+  const ctx = useContext(ApiKeyContext);
+  if (!ctx) {
+    throw new Error("useApiKey must be used inside ApiKeyProvider");
+  }
+  return ctx;
 }
 
 /**
  * API 키 마스킹 — UI 표시용.
- * "sk-ant-api03-AbC...XyZ" 형태로 줄여 보여준다.
  */
 export function maskApiKey(key) {
   if (!key) return "";
