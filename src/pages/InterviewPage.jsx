@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -6,41 +6,65 @@ import {
   Building2,
   GraduationCap,
   Code2,
+  AlertTriangle,
+  KeyRound,
 } from "lucide-react";
-import { getSession } from "../services/sessionsRepo";
-import { COMPANY_TYPES, EXPERIENCE_LEVELS } from "../constants/interview";
+
+import { useApiKey } from "../hooks/useApiKey";
+import { useInterview } from "../hooks/useInterview";
+import {
+  COMPANY_TYPES,
+  EXPERIENCE_LEVELS,
+  SESSION_STATUS,
+} from "../constants/interview";
+import { toUiBubbles } from "../utils/messageAdapter";
+import MessageBubble from "../components/ui/MessageBubble";
+import TypingIndicator from "../components/ui/TypingIndicator";
+import AnswerComposer from "../components/ui/AnswerComposer";
 
 function InterviewPage() {
   const [params] = useSearchParams();
   const sessionId = Number(params.get("id"));
 
-  const [session, setSession] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
+  const { apiKey, model, loading: keyLoading } = useApiKey();
+  const { session, messages, loading, thinking, error, notFound, submit } =
+    useInterview({ sessionId, apiKey, model });
 
+  // ─── 자동 스크롤 ─────────────────────────────────────────
+  const scrollRef = useRef(null);
   useEffect(() => {
-    let cancelled = false;
-    if (!sessionId) {
-      setLoading(false);
-      setNotFound(true);
-      return;
-    }
-    (async () => {
-      const s = await getSession(sessionId);
-      if (cancelled) return;
-      if (!s) setNotFound(true);
-      setSession(s ?? null);
-      setLoading(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [sessionId]);
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [messages.length, thinking]);
 
-  if (loading) {
+  // ─── 화면 분기 ──────────────────────────────────────────
+  if (keyLoading || loading) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-12 text-slate-400 text-sm">
         세션 불러오는 중...
+      </div>
+    );
+  }
+
+  if (!apiKey) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-12">
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-6 flex items-start gap-3">
+          <KeyRound className="w-5 h-5 text-amber-300 mt-0.5 shrink-0" />
+          <div>
+            <h2 className="text-amber-100 font-medium">API 키 등록이 필요해</h2>
+            <p className="text-sm text-amber-200/80 mt-1">
+              <Link
+                to="/setup"
+                className="underline underline-offset-2 hover:text-amber-100"
+              >
+                설정 페이지
+              </Link>
+              에서 Anthropic API 키를 먼저 등록해줘.
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -66,50 +90,97 @@ function InterviewPage() {
     );
   }
 
-  const companyLabel =
-    COMPANY_TYPES.find((c) => c.id === session.companyType)?.label ??
-    session.companyType;
-  const expLabel =
-    EXPERIENCE_LEVELS.find((e) => e.id === session.experienceLevel)?.label ??
-    "—";
+  const bubbles = toUiBubbles(messages);
+  const isLocked = session.status !== SESSION_STATUS.IN_PROGRESS;
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
-      {/* 세션 컨텍스트 카드 */}
-      <section className="rounded-xl border border-slate-700 bg-slate-900/50 p-5 mb-6">
-        <div className="text-xs text-slate-500 mb-2">
-          Session #{session.id} · {new Date(session.startedAt).toLocaleString()}
-        </div>
-        <div className="grid sm:grid-cols-2 gap-3 text-sm">
-          <InfoRow icon={Briefcase} label="직무" value={session.jobRole} />
-          <InfoRow icon={Building2} label="회사 타입" value={companyLabel} />
-          <InfoRow icon={GraduationCap} label="경력 수준" value={expLabel} />
-          <InfoRow
-            icon={Code2}
-            label="기술 스택"
-            value={session.techStack?.join(", ") || "—"}
-          />
-        </div>
-      </section>
+    <div className="max-w-3xl mx-auto px-4 py-6 flex flex-col h-[calc(100vh-7rem)] min-h-[500px]">
+      {/* 컨텍스트 카드 */}
+      <SessionHeader session={session} />
 
-      {/* placeholder */}
-      <div className="rounded-xl border border-slate-700 bg-slate-900/50 p-8 text-center text-slate-500 text-sm">
-        🚧 Step 6 (Claude 클라이언트) → Step 7 (메시지 UI)에서 면접 대화 영역이
-        들어올 자리야.
-        <br />
-        세션 정보는 위에 정상 저장돼 있어. 다음 단계에서 이 데이터를 시스템
-        프롬프트에 주입할 거야.
+      {/* 메시지 영역 */}
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto rounded-xl border border-slate-800 bg-slate-950/40 p-4 space-y-5"
+      >
+        {bubbles.length === 0 && !thinking && !error && (
+          <div className="h-full flex items-center justify-center text-sm text-slate-500">
+            면접관이 곧 첫 인사를 건넬 거야...
+          </div>
+        )}
+
+        {bubbles.map((b) => (
+          <MessageBubble key={b.id} bubble={b} />
+        ))}
+
+        {thinking && <TypingIndicator />}
+
+        {error && (
+          <div className="rounded-md border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-xs text-rose-200 flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+            <div>
+              <div className="font-medium">면접관 호출에 실패했어</div>
+              <div className="opacity-80">{error}</div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 입력 영역 */}
+      <div className="mt-4">
+        <AnswerComposer
+          onSubmit={submit}
+          thinking={thinking}
+          disabled={isLocked}
+        />
+        <div className="mt-2 text-[11px] text-slate-500 text-right">
+          🚧 Step 11에서 "면접 종료" 버튼이 이 영역 옆에 들어올 자리야
+        </div>
       </div>
     </div>
   );
 }
 
+// ─── 세션 헤더 ───────────────────────────────────────────────
+function SessionHeader({ session }) {
+  const companyLabel = useMemo(
+    () =>
+      COMPANY_TYPES.find((c) => c.id === session.companyType)?.label ??
+      session.companyType,
+    [session.companyType],
+  );
+  const expLabel = useMemo(
+    () =>
+      EXPERIENCE_LEVELS.find((e) => e.id === session.experienceLevel)?.label ??
+      "—",
+    [session.experienceLevel],
+  );
+
+  return (
+    <section className="rounded-xl border border-slate-800 bg-slate-900/50 p-4 mb-4 shrink-0">
+      <div className="text-[11px] text-slate-500 mb-2">
+        Session #{session.id} · {new Date(session.startedAt).toLocaleString()}
+      </div>
+      <div className="grid sm:grid-cols-4 gap-3 text-sm">
+        <InfoRow icon={Briefcase} label="직무" value={session.jobRole} />
+        <InfoRow icon={Building2} label="회사 타입" value={companyLabel} />
+        <InfoRow icon={GraduationCap} label="경력" value={expLabel} />
+        <InfoRow
+          icon={Code2}
+          label="기술 스택"
+          value={session.techStack?.join(", ") || "—"}
+        />
+      </div>
+    </section>
+  );
+}
+
 function InfoRow({ icon: Icon, label, value }) {
   return (
-    <div className="flex items-start gap-2">
+    <div className="flex items-start gap-2 min-w-0">
       <Icon className="w-4 h-4 mt-0.5 text-sky-400 shrink-0" />
       <div className="min-w-0">
-        <div className="text-xs text-slate-500">{label}</div>
+        <div className="text-[11px] text-slate-500">{label}</div>
         <div className="text-slate-200 truncate">{value}</div>
       </div>
     </div>
