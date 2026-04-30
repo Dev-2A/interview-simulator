@@ -13,12 +13,16 @@ if (import.meta.env.DEV) {
     import("./services/sessionsRepo"),
     import("./services/messagesRepo"),
     import("./services/settingsRepo"),
-  ]).then(([sessions, messages, settings]) => {
+    import("./services/claudeClient"),
+    import("./services/promptBuilder"),
+  ]).then(([sessions, messages, settings, claude, prompts]) => {
     window.repos = { sessions, messages, settings };
+    window.claude = claude;
+    window.prompts = prompts;
     console.log(
       "%c🛠️ Dev mode",
       "color:#7dd3fc;font-weight:bold",
-      "window.db, window.repos 사용 가능",
+      "window.db, window.repos, window.claude, window.prompts 사용 가능",
     );
   });
 }
