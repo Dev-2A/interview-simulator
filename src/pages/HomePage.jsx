@@ -1,7 +1,11 @@
 import { Link } from "react-router-dom";
-import { Sparkles, History } from "lucide-react";
+import { Sparkles, History, KeyRound } from "lucide-react";
+import { useApiKey } from "../hooks/useApiKey";
 
 function HomePage() {
+  const { apiKey, loading } = useApiKey();
+  const hasKey = !loading && !!apiKey;
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-12">
       <section className="text-center mb-12">
@@ -14,6 +18,26 @@ function HomePage() {
           질문 → 답변 → 피드백 → 꼬리 질문까지 진행해줘.
         </p>
       </section>
+
+      {/* API 키 미등록 안내 배너 */}
+      {!loading && !hasKey && (
+        <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 flex items-start gap-3">
+          <KeyRound className="w-5 h-5 text-amber-300 mt-0.5 shrink-0" />
+          <div className="text-sm">
+            <p className="text-amber-100 font-medium">API 키 등록이 필요해</p>
+            <p className="text-amber-200/70 mt-0.5">
+              이 도구는 BYOK 방식이야. 먼저{" "}
+              <Link
+                to="/setup"
+                className="underline underline-offset-2 hover:text-amber-100"
+              >
+                설정 페이지
+              </Link>
+              에서 Anthropic API 키를 등록해줘.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="grid sm:grid-cols-2 gap-4">
         <Link
