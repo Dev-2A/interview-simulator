@@ -65,3 +65,44 @@ export async function listAllQuestions() {
 export async function deleteMessage(id) {
   await db.messages.delete(id);
 }
+
+/**
+ * 세션의 가장 마지막 "답변 턴"을 통째로 삭제한다.
+ *
+ * 답변 턴 = answer → feedback → follow_up 의 묶음.
+ * 면접관이 던진 메인 question 자체는 유지된다 (지원자가 같은 질문에 다시 답할 수 있도록).
+ *
+ * @param {number} sessionId
+ * @returns {Promise<{ removed: number }>}
+ */
+export async function rollbackLastAnswerTurn(sessionId) {
+  const all = await listMessagesBySession(sessionId);
+
+  // 가장 마지막 ANSWER의 위치를 찾는다
+  let lastAnswerIdx = -1;
+  for (let i = all.length - 1; i >= 0; i--) {
+    if (all[i].type === MESSAGE_TYPE.ANSWER) {
+      lastAnswerIdx = i;
+      break;
+    }
+  }
+  if (lastAnswerIdx === -1) return { removed: 0 };
+
+  // ANSWER ~ 그 뒤의 FEEDBACK / FOLLOW_UP 까지를 삭제 대상으로
+  const toRemove = all
+    .slice(lastAnswerIdx)
+    .filter((m) =>
+      [
+        MESSAGE_TYPE.ANSWER,
+        MESSAGE_TYPE.FEEDBACK,
+        MESSAGE_TYPE.FOLLOW_UP,
+      ].includes(m.type),
+    );
+  const ids = toRemove.map((m) => m.id);
+
+  await db.transaction("rw", db.messages, async () => {
+    await db.messages.bulkDelete(ids);
+  });
+
+  return { removed: ids.length };
+}

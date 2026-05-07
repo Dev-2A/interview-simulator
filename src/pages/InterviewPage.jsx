@@ -8,10 +8,12 @@ import {
   Code2,
   AlertTriangle,
   KeyRound,
+  X,
 } from "lucide-react";
 
 import { useApiKey } from "../hooks/useApiKey";
 import { useInterview } from "../hooks/useInterview";
+import { useToast } from "../components/ui/ToastContext";
 import {
   COMPANY_TYPES,
   EXPERIENCE_LEVELS,
@@ -21,17 +23,31 @@ import { toUiBubbles } from "../utils/messageAdapter";
 import MessageBubble from "../components/ui/MessageBubble";
 import TypingIndicator from "../components/ui/TypingIndicator";
 import AnswerComposer from "../components/ui/AnswerComposer";
+import ScoreBadge from "../components/ui/ScoreBadge";
 
 function InterviewPage() {
   const [params] = useSearchParams();
   const sessionId = Number(params.get("id"));
+  const toast = useToast();
 
   const { apiKey, model, loading: keyLoading } = useApiKey();
-  const { session, messages, loading, thinking, error, notFound, submit } =
-    useInterview({ sessionId, apiKey, model });
+  const {
+    session,
+    messages,
+    loading,
+    thinking,
+    error,
+    notFound,
+    stats,
+    submit,
+    rollbackLast,
+    dismissError,
+  } = useInterview({ sessionId, apiKey, model });
 
-  // ─── 자동 스크롤 ─────────────────────────────────────────
+  const composerRef = useRef(null);
   const scrollRef = useRef(null);
+
+  // 자동 스크롤
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -90,13 +106,24 @@ function InterviewPage() {
     );
   }
 
+  // ─── 본 화면 ────────────────────────────────────────────
   const bubbles = toUiBubbles(messages);
   const isLocked = session.status !== SESSION_STATUS.IN_PROGRESS;
+  const canRollback = bubbles.some((b) => b.type === "answer");
+
+  const handleRollback = async () => {
+    const result = await rollbackLast();
+    if (!result.ok) {
+      toast.info(result.reason);
+      return;
+    }
+    composerRef.current?.setText(result.restoredText);
+    toast.info("마지막 답변을 되돌렸어. 수정 후 다시 보내줘.");
+  };
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-6 flex flex-col h-[calc(100vh-7rem)] min-h-[500px]">
-      {/* 컨텍스트 카드 */}
-      <SessionHeader session={session} />
+    <div className="max-w-3xl mx-auto px-4 py-6 flex flex-col h-[calc(100vh-7rem)] min-h-125">
+      <SessionHeader session={session} stats={stats} />
 
       {/* 메시지 영역 */}
       <div
@@ -118,10 +145,18 @@ function InterviewPage() {
         {error && (
           <div className="rounded-md border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-xs text-rose-200 flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-            <div>
-              <div className="font-medium">면접관 호출에 실패했어</div>
+            <div className="flex-1">
+              <div className="font-medium">{summarizeError(error)}</div>
               <div className="opacity-80">{error}</div>
             </div>
+            <button
+              type="button"
+              onClick={dismissError}
+              className="text-rose-300/70 hover:text-rose-200 transition shrink-0"
+              aria-label="에러 메시지 닫기"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         )}
       </div>
@@ -129,7 +164,10 @@ function InterviewPage() {
       {/* 입력 영역 */}
       <div className="mt-4">
         <AnswerComposer
+          ref={composerRef}
           onSubmit={submit}
+          onRollback={handleRollback}
+          canRollback={canRollback}
           thinking={thinking}
           disabled={isLocked}
         />
@@ -141,8 +179,19 @@ function InterviewPage() {
   );
 }
 
+// 에러 메시지에서 한 줄 요약을 뽑아낸다
+function summarizeError(message) {
+  if (message.includes("인증 실패")) return "인증 오류";
+  if (message.includes("요청 한도")) return "요청 한도 초과";
+  if (message.includes("JSON")) return "응답 파싱 실패";
+  if (message.includes("형식이 예상과")) return "응답 형식 오류";
+  if (message.includes("답변이") || message.includes("단답"))
+    return "답변 검증";
+  return "면접관 호출 실패";
+}
+
 // ─── 세션 헤더 ───────────────────────────────────────────────
-function SessionHeader({ session }) {
+function SessionHeader({ session, stats }) {
   const companyLabel = useMemo(
     () =>
       COMPANY_TYPES.find((c) => c.id === session.companyType)?.label ??
@@ -158,8 +207,11 @@ function SessionHeader({ session }) {
 
   return (
     <section className="rounded-xl border border-slate-800 bg-slate-900/50 p-4 mb-4 shrink-0">
-      <div className="text-[11px] text-slate-500 mb-2">
-        Session #{session.id} · {new Date(session.startedAt).toLocaleString()}
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <div className="text-[11px] text-slate-500">
+          Session #{session.id} · {new Date(session.startedAt).toLocaleString()}
+        </div>
+        <ScoreBadge stats={stats} />
       </div>
       <div className="grid sm:grid-cols-4 gap-3 text-sm">
         <InfoRow icon={Briefcase} label="직무" value={session.jobRole} />

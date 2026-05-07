@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { buildSystemPrompt, SIGNAL } from "./promptBuilder";
 import { parseLooseJson } from "../utils/parseJson";
+import { withRetry } from "../utils/retry";
 
 /**
  * 브라우저용 Anthropic 클라이언트 인스턴스를 만든다.
@@ -84,33 +85,39 @@ async function callInterviewer({
   history = [],
   userContent,
   askedQuestions = [],
+  signal, // AbortSignal — 페이지 이탈 시 호출 취소
 }) {
   const client = createClient(apiKey);
 
-  const response = await client.messages.create({
-    model,
-    max_tokens: 1500,
-    system: buildSystemPrompt(session, { askedQuestions }),
-    messages: [...history, { role: "user", content: userContent }],
+  return withRetry(async () => {
+    const response = await client.messages.create(
+      {
+        model,
+        max_tokens: 1500,
+        system: buildSystemPrompt(session, { askedQuestions }),
+        messages: [...history, { role: "user", content: userContent }],
+      },
+      signal ? { signal } : undefined,
+    );
+
+    const raw = extractText(response);
+    if (!raw) throw new Error("면접관 응답이 비어 있어.");
+    return parseLooseJson(raw);
   });
-
-  const raw = extractText(response);
-  if (!raw) throw new Error("면접관 응답이 비어 있어.");
-
-  return parseLooseJson(raw);
 }
 
 /**
  * 면접 시작 — 인삿말 + 첫 질문을 받아온다.
  * 반환: { type: 'opening', opening, question }
  */
-export async function startInterview({ apiKey, model, session }) {
+export async function startInterview({ apiKey, model, session, signal }) {
   return callInterviewer({
     apiKey,
     model,
     session,
     history: [],
     userContent: SIGNAL.START,
+    signal,
   });
 }
 
@@ -130,6 +137,7 @@ export async function submitAnswer({
   history,
   answer,
   askedQuestions = [],
+  signal,
 }) {
   return callInterviewer({
     apiKey,
@@ -138,6 +146,7 @@ export async function submitAnswer({
     history,
     userContent: answer,
     askedQuestions,
+    signal,
   });
 }
 
@@ -145,12 +154,19 @@ export async function submitAnswer({
  * 면접 종료 — 전체 회고를 받아온다.
  * 반환: { type: 'closing', retrospective: { overall, strengths[], improvements[], verdict } }
  */
-export async function wrapUpInterview({ apiKey, model, session, history }) {
+export async function wrapUpInterview({
+  apiKey,
+  model,
+  session,
+  history,
+  signal,
+}) {
   return callInterviewer({
     apiKey,
     model,
     session,
     history,
     userContent: SIGNAL.WRAP_UP,
+    signal,
   });
 }
