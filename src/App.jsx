@@ -4,6 +4,7 @@ import HomePage from "./pages/HomePage";
 import SetupPage from "./pages/SetupPage";
 import InterviewPage from "./pages/InterviewPage";
 import HistoryPage from "./pages/HistoryPage";
+import HistoryDetailPage from "./pages/HistoryDetailPage";
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
         <Route path="/setup" element={<SetupPage />} />
         <Route path="/interview" element={<InterviewPage />} />
         <Route path="/history" element={<HistoryPage />} />
+        <Route path="/history/:id" element={<HistoryDetailPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

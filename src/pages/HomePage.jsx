@@ -1,15 +1,31 @@
 import { Link } from "react-router-dom";
 import { Sparkles, History, KeyRound } from "lucide-react";
 import { useApiKey } from "../hooks/useApiKey";
+import { useEffect, useState } from "react";
+import { listSessions } from "../services/sessionsRepo";
 
 function HomePage() {
   const { apiKey, loading } = useApiKey();
+
+  const [sessionCount, setSessionCount] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const list = await listSessions();
+      if (!cancelled) setSessionCount(list.length);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const hasKey = !loading && !!apiKey;
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-12">
       <section className="text-center mb-12">
-        <h2 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent">
+        <h2 className="text-3xl sm:text-4xl font-bold bg-linear-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent">
           AI 면접관과 1:1 모의 면접
         </h2>
         <p className="mt-4 text-slate-400 leading-relaxed">
@@ -55,7 +71,14 @@ function HomePage() {
           to="/history"
           className="group rounded-xl border border-slate-700 bg-slate-900/50 p-6 hover:border-sky-500/50 hover:bg-slate-900 transition"
         >
-          <History className="w-7 h-7 text-sky-400 mb-3" />
+          <div className="flex items-start justify-between">
+            <History className="w-7 h-7 text-sky-400 mb-3" />
+            {typeof sessionCount === "number" && sessionCount > 0 && (
+              <span className="text-[10px] uppercase tracking-wider text-slate-400 px-2 py-0.5 rounded-full bg-slate-800/60 border border-slate-700">
+                {sessionCount} 세션
+              </span>
+            )}
+          </div>
           <h3 className="font-semibold text-slate-100">지난 세션 보기</h3>
           <p className="mt-1 text-sm text-slate-400">
             완료된 면접 기록과 회고를 다시 열람해
