@@ -106,3 +106,48 @@ export async function rollbackLastAnswerTurn(sessionId) {
 
   return { removed: ids.length };
 }
+
+/**
+ * "이 세션의 모든 질문 + 최근 N개 세션의 모든 질문"을 합쳐 반환한다.
+ *
+ * 이번 세션 안에서의 반복은 무조건 막고,
+ * 과거 세션과의 중복은 가이드 정도로 LLM에 알려준다.
+ *
+ * @param {number} sessionId
+ * @param {number} [recentSessionLimit=5]
+ * @returns {Promise<string[]>}
+ */
+export async function listQuestionsForGuard(sessionId, recentSessionLimit = 5) {
+  // 1) 이번 세션 질문
+  const current = await listQuestionsBySession(sessionId);
+
+  // 2) 최근 N개 세션 ID 수집 (현재 세션 제외)
+  const recent = await db.sessions
+    .orderBy("startedAt")
+    .reverse()
+    .limit(recentSessionLimit + 1) // +1: 자기 자신이 포함될 가능성 대비
+    .toArray();
+
+  const recentIds = recent
+    .map((s) => s.id)
+    .filter((id) => id !== sessionId)
+    .slice(0, recentSessionLimit);
+
+  // 3) 그 세션들의 질문을 일괄 조회
+  const past = [];
+  for (const id of recentIds) {
+    const qs = await listQuestionsBySession(id);
+    past.push(...qs);
+  }
+
+  // 중복 정규화 제거
+  const seen = new Set();
+  const merged = [];
+  for (const q of [...current, ...past]) {
+    const key = q.trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    merged.push(q);
+  }
+  return merged;
+}

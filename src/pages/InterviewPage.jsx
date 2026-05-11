@@ -24,6 +24,7 @@ import MessageBubble from "../components/ui/MessageBubble";
 import TypingIndicator from "../components/ui/TypingIndicator";
 import AnswerComposer from "../components/ui/AnswerComposer";
 import ScoreBadge from "../components/ui/ScoreBadge";
+import QuestionDebugPanel from "../components/ui/QuestionDebugPanel";
 
 function InterviewPage() {
   const [params] = useSearchParams();
@@ -175,6 +176,7 @@ function InterviewPage() {
           🚧 Step 11에서 "면접 종료" 버튼이 이 영역 옆에 들어올 자리야
         </div>
       </div>
+      <QuestionDebugPanel sessionId={session.id} refreshKey={messages.length} />
     </div>
   );
 }

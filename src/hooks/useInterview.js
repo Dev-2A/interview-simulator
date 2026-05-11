@@ -4,6 +4,7 @@ import {
   addMessage,
   listMessagesBySession,
   listQuestionsBySession,
+  listQuestionsForGuard,
   rollbackLastAnswerTurn,
 } from "../services/messagesRepo";
 import {
@@ -154,7 +155,7 @@ export function useInterview({ sessionId, apiKey, model }) {
 
         // 2) Anthropic 호출
         const history = toAnthropicHistory(afterAnswer.slice(0, -1));
-        const askedQuestions = await listQuestionsBySession(session.id);
+        const askedQuestions = await listQuestionsForGuard(session.id);
 
         const fb = await submitAnswer({
           apiKey,

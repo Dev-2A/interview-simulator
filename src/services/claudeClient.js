@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { buildSystemPrompt, SIGNAL } from "./promptBuilder";
 import { parseLooseJson } from "../utils/parseJson";
 import { withRetry } from "../utils/retry";
+import { findSimilarQuestion } from "../utils/questionSimilarity";
 
 /**
  * 브라우저용 Anthropic 클라이언트 인스턴스를 만든다.
@@ -123,12 +124,11 @@ export async function startInterview({ apiKey, model, session, signal }) {
 
 /**
  * 답변 제출 — 피드백 + 꼬리 질문을 받아온다.
- * 반환: { type: 'feedback', feedback: { strengths, weaknesses, score }, followUp }
  *
- * @param {Array} history          — 지금까지의 messages 배열
- *                                   (role: 'user'|'assistant', content: string)
- * @param {string} answer          — 사용자의 이번 답변
- * @param {string[]} askedQuestions
+ * 받은 followUp이 askedQuestions와 유사도 임계값 이상이면,
+ * "이건 이미 했어, 다른 각도로 물어줘"라는 후속 메시지를 보내 1회 갱신을 시도한다.
+ *
+ * 반환: { type: 'feedback', feedback: {...}, followUp: string }
  */
 export async function submitAnswer({
   apiKey,
@@ -139,7 +139,7 @@ export async function submitAnswer({
   askedQuestions = [],
   signal,
 }) {
-  return callInterviewer({
+  const first = await callInterviewer({
     apiKey,
     model,
     session,
@@ -148,6 +148,48 @@ export async function submitAnswer({
     askedQuestions,
     signal,
   });
+
+  if (first?.type !== "feedback" || !first.feedback || !first.followUp) {
+    return first;
+  }
+
+  // 표면적/의미적 중복 검사
+  const dup = findSimilarQuestion(first.followUp, askedQuestions);
+  if (!dup) return first;
+
+  // 1회 갱신 시도: 면접관에게 동일 질문임을 알리고 다른 각도를 요구
+  const retryNote =
+    `방금 만든 followUp("${first.followUp}")이 이미 했던 질문("${dup}")과 너무 비슷해. ` +
+    `같은 출력 스키마(JSON)를 유지한 채, 이번 답변을 평가하고 followUp만 다른 관점·다른 깊이의 질문으로 다시 만들어줘. ` +
+    `feedback 내용은 유지하거나 보완해도 좋아.`;
+
+  const retryHistory = [
+    ...history,
+    { role: "user", content: answer },
+    { role: "assistant", content: JSON.stringify(first) },
+  ];
+
+  try {
+    const second = await callInterviewer({
+      apiKey,
+      model,
+      session,
+      history: retryHistory,
+      userContent: retryNote,
+      askedQuestions,
+      signal,
+    });
+
+    if (second?.type === "feedback" && second.feedback && second.followUp) {
+      // 갱신본도 또 중복이면 그냥 갱신본 반환 (무한 루프 방지)
+      return second;
+    }
+    return first;
+  } catch (err) {
+    // 갱신 실패 시 원본을 살린다 (사용자 흐름이 끊기지 않도록)
+    console.warn("followUp 재요청 실패, 원본 유지:", err);
+    return first;
+  }
 }
 
 /**
