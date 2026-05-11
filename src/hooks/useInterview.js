@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getSession, abandonSession } from "../services/sessionsRepo";
+import {
+  getSession,
+  abandonSession,
+  completeSession,
+} from "../services/sessionsRepo";
 import {
   addMessage,
   listMessagesBySession,
@@ -10,6 +14,7 @@ import {
 import {
   startInterview,
   submitAnswer,
+  wrapUpInterview,
   extractErrorMessage,
 } from "../services/claudeClient";
 import {
@@ -123,6 +128,27 @@ export function useInterview({ sessionId, apiKey, model }) {
     })();
   }, [loading, session, messages.length, apiKey, model]);
 
+  // ─── 점수 누적 (피드백 메시지에서 score 추출) ───────────────
+  const stats = useMemo(() => {
+    const scores = [];
+    for (const m of messages) {
+      if (m.type !== MESSAGE_TYPE.FEEDBACK) continue;
+      try {
+        const parsed = JSON.parse(m.content);
+        if (typeof parsed?.score === "number") scores.push(parsed.score);
+      } catch {
+        // 무시
+      }
+    }
+    if (scores.length === 0) return { count: 0, avg: null, latest: null };
+    const sum = scores.reduce((a, b) => a + b, 0);
+    return {
+      count: scores.length,
+      avg: +(sum / scores.length).toFixed(1),
+      latest: scores[scores.length - 1],
+    };
+  }, [messages]);
+
   // ─── 답변 제출 ──────────────────────────────────────────
   const submit = useCallback(
     async (answerText) => {
@@ -223,6 +249,88 @@ export function useInterview({ sessionId, apiKey, model }) {
     return { ok: true, restoredText: lastAnswer?.content ?? "" };
   }, [session, thinking]);
 
+  // ─── 면접 정상 종료 → 회고 생성 ──────────────────────────
+  const wrapUp = useCallback(async () => {
+    if (!session || !apiKey || !model) {
+      return { ok: false, reason: "API 키나 세션 정보가 없어." };
+    }
+    if (thinking) {
+      return { ok: false, reason: "응답 대기 중에는 종료할 수 없어." };
+    }
+
+    // 최소한 답변 1개는 있어야 회고가 의미 있음
+    const hasAnswer = messages.some((m) => m.type === MESSAGE_TYPE.ANSWER);
+    if (!hasAnswer) {
+      return {
+        ok: false,
+        reason: "아직 답변이 없어. 최소 한 번은 답해야 회고를 만들 수 있어.",
+      };
+    }
+
+    const ac = new AbortController();
+    abortRef.current = ac;
+
+    try {
+      setThinking(true);
+      setError(null);
+
+      const history = toAnthropicHistory(messages);
+      const closing = await wrapUpInterview({
+        apiKey,
+        model,
+        session,
+        history,
+        signal: ac.signal,
+      });
+
+      if (
+        closing?.type !== "closing" ||
+        !closing.retrospective ||
+        !Array.isArray(closing.retrospective.strengths) ||
+        !Array.isArray(closing.retrospective.improvements)
+      ) {
+        throw new Error("회고 응답 형식이 예상과 달라.");
+      }
+
+      // 평균 점수 스냅샷 동봉
+      const retro = {
+        ...closing.retrospective,
+        finalScore: stats.avg ?? null,
+        finishedAt: Date.now(),
+      };
+
+      // 세션 정상 종료 처리 + 회고 저장
+      await completeSession(session.id, JSON.stringify(retro));
+
+      // 마무리 발화 (verdict 한 줄)를 messages에도 남겨 대화 흐름이 자연스럽게 닫히도록
+      await addMessage({
+        sessionId: session.id,
+        role: MESSAGE_ROLE.INTERVIEWER,
+        type: MESSAGE_TYPE.CLOSING,
+        content: retro.verdict || "수고하셨습니다. 면접을 마치겠습니다.",
+      });
+
+      // 화면 상태 동기화
+      const [refreshedSession, refreshedMsgs] = await Promise.all([
+        getSession(session.id),
+        listMessagesBySession(session.id),
+      ]);
+      if (ac.signal.aborted) return { ok: true };
+      setSession(refreshedSession);
+      setMessages(refreshedMsgs);
+
+      return { ok: true };
+    } catch (err) {
+      if (ac.signal.aborted) return { ok: false, reason: "aborted" };
+      console.error(err);
+      const msg = extractErrorMessage(err);
+      setError(msg);
+      return { ok: false, reason: msg };
+    } finally {
+      if (!ac.signal.aborted) setThinking(false);
+    }
+  }, [session, apiKey, model, thinking, messages, stats.avg]);
+
   // ─── 면접 포기 ──────────────────────────────────────────
   const abandon = useCallback(async () => {
     if (!session) return;
@@ -231,27 +339,6 @@ export function useInterview({ sessionId, apiKey, model }) {
     const refreshed = await getSession(session.id);
     setSession(refreshed);
   }, [session]);
-
-  // ─── 점수 누적 (피드백 메시지에서 score 추출) ───────────────
-  const stats = useMemo(() => {
-    const scores = [];
-    for (const m of messages) {
-      if (m.type !== MESSAGE_TYPE.FEEDBACK) continue;
-      try {
-        const parsed = JSON.parse(m.content);
-        if (typeof parsed?.score === "number") scores.push(parsed.score);
-      } catch {
-        // 무시
-      }
-    }
-    if (scores.length === 0) return { count: 0, avg: null, latest: null };
-    const sum = scores.reduce((a, b) => a + b, 0);
-    return {
-      count: scores.length,
-      avg: +(sum / scores.length).toFixed(1),
-      latest: scores[scores.length - 1],
-    };
-  }, [messages]);
 
   const dismissError = useCallback(() => setError(null), []);
 
@@ -265,6 +352,7 @@ export function useInterview({ sessionId, apiKey, model }) {
     stats,
     submit,
     rollbackLast,
+    wrapUp,
     abandon,
     dismissError,
   };

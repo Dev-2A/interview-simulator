@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   KeyRound,
   X,
+  Lock,
 } from "lucide-react";
 
 import { useApiKey } from "../hooks/useApiKey";
@@ -20,10 +21,14 @@ import {
   SESSION_STATUS,
 } from "../constants/interview";
 import { toUiBubbles } from "../utils/messageAdapter";
+import { parseRetrospective } from "../utils/retrospective";
+
 import MessageBubble from "../components/ui/MessageBubble";
 import TypingIndicator from "../components/ui/TypingIndicator";
 import AnswerComposer from "../components/ui/AnswerComposer";
 import ScoreBadge from "../components/ui/ScoreBadge";
+import RetrospectiveCard from "../components/ui/RetrospectiveCard";
+import EndInterviewButton from "../components/ui/EndInterviewButton";
 import QuestionDebugPanel from "../components/ui/QuestionDebugPanel";
 
 function InterviewPage() {
@@ -42,6 +47,7 @@ function InterviewPage() {
     stats,
     submit,
     rollbackLast,
+    wrapUp,
     dismissError,
   } = useInterview({ sessionId, apiKey, model });
 
@@ -54,6 +60,17 @@ function InterviewPage() {
     if (!el) return;
     el.scrollTop = el.scrollHeight;
   }, [messages.length, thinking]);
+
+  // 회고가 새로 생성되면 페이지 최상단으로 부드럽게 스크롤
+  const retrospective = useMemo(
+    () => parseRetrospective(session?.retrospective),
+    [session?.retrospective],
+  );
+  useEffect(() => {
+    if (retrospective) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [retrospective]);
 
   // ─── 화면 분기 ──────────────────────────────────────────
   if (keyLoading || loading) {
@@ -122,9 +139,32 @@ function InterviewPage() {
     toast.info("마지막 답변을 되돌렸어. 수정 후 다시 보내줘.");
   };
 
+  const handleWrapUp = async () => {
+    const result = await wrapUp();
+    if (!result.ok) {
+      if (result.reason === "aborted") return;
+      toast.error(result.reason);
+      return;
+    }
+    toast.success("회고가 생성됐어. 수고했어! 💙");
+  };
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-6 flex flex-col h-[calc(100vh-7rem)] min-h-125">
-      <SessionHeader session={session} stats={stats} />
+      <SessionHeader
+        session={session}
+        stats={stats}
+        onWrapUp={handleWrapUp}
+        thinking={thinking}
+        canEnd={!isLocked && bubbles.some((b) => b.type === "answer")}
+      />
+
+      {/* 회고가 있으면 메시지 영역 위에 카드 형태로 고정 노출 */}
+      {retrospective && (
+        <div className="mb-4">
+          <RetrospectiveCard retrospective={retrospective} />
+        </div>
+      )}
 
       {/* 메시지 영역 */}
       <div
@@ -164,36 +204,51 @@ function InterviewPage() {
 
       {/* 입력 영역 */}
       <div className="mt-4">
-        <AnswerComposer
-          ref={composerRef}
-          onSubmit={submit}
-          onRollback={handleRollback}
-          canRollback={canRollback}
-          thinking={thinking}
-          disabled={isLocked}
-        />
-        <div className="mt-2 text-[11px] text-slate-500 text-right">
-          🚧 Step 11에서 "면접 종료" 버튼이 이 영역 옆에 들어올 자리야
-        </div>
+        {isLocked ? (
+          <LockedComposer status={session.status} />
+        ) : (
+          <AnswerComposer
+            ref={composerRef}
+            onSubmit={submit}
+            onRollback={handleRollback}
+            canRollback={canRollback}
+            thinking={thinking}
+            disabled={isLocked}
+          />
+        )}
       </div>
+
       <QuestionDebugPanel sessionId={session.id} refreshKey={messages.length} />
     </div>
   );
 }
 
-// 에러 메시지에서 한 줄 요약을 뽑아낸다
+// 종료된 세션의 입력창 자리에 들어가는 잠금 안내
+function LockedComposer({ status }) {
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3 flex items-center gap-2 text-sm text-slate-400">
+      <Lock className="w-4 h-4 text-slate-500" />
+      {status === SESSION_STATUS.COMPLETED
+        ? "면접이 종료됐어. 회고는 위쪽 카드에서 확인할 수 있어."
+        : "이 세션은 중단된 상태야."}
+    </div>
+  );
+}
+
 function summarizeError(message) {
+  if (!message) return "";
   if (message.includes("인증 실패")) return "인증 오류";
   if (message.includes("요청 한도")) return "요청 한도 초과";
   if (message.includes("JSON")) return "응답 파싱 실패";
   if (message.includes("형식이 예상과")) return "응답 형식 오류";
   if (message.includes("답변이") || message.includes("단답"))
     return "답변 검증";
+  if (message.includes("회고")) return "회고 생성 실패";
   return "면접관 호출 실패";
 }
 
 // ─── 세션 헤더 ───────────────────────────────────────────────
-function SessionHeader({ session, stats }) {
+function SessionHeader({ session, stats, onWrapUp, thinking, canEnd }) {
   const companyLabel = useMemo(
     () =>
       COMPANY_TYPES.find((c) => c.id === session.companyType)?.label ??
@@ -207,13 +262,24 @@ function SessionHeader({ session, stats }) {
     [session.experienceLevel],
   );
 
+  const inProgress = session.status === SESSION_STATUS.IN_PROGRESS;
+
   return (
     <section className="rounded-xl border border-slate-800 bg-slate-900/50 p-4 mb-4 shrink-0">
       <div className="flex items-center justify-between gap-2 mb-2">
         <div className="text-[11px] text-slate-500">
           Session #{session.id} · {new Date(session.startedAt).toLocaleString()}
         </div>
-        <ScoreBadge stats={stats} />
+        <div className="flex items-center gap-2">
+          <ScoreBadge stats={stats} />
+          {inProgress && (
+            <EndInterviewButton
+              onConfirm={onWrapUp}
+              thinking={thinking}
+              disabled={!canEnd}
+            />
+          )}
+        </div>
       </div>
       <div className="grid sm:grid-cols-4 gap-3 text-sm">
         <InfoRow icon={Briefcase} label="직무" value={session.jobRole} />
