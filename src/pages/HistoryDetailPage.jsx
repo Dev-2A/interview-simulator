@@ -10,6 +10,7 @@ import {
   PlayCircle,
   Clock,
   Flag,
+  FileText,
 } from "lucide-react";
 
 import {
@@ -29,6 +30,9 @@ import { useToast } from "../components/ui/ToastContext";
 
 import RetrospectiveCard from "../components/ui/RetrospectiveCard";
 import MessageBubble from "../components/ui/MessageBubble";
+import ExportPanel from "../components/ui/ExportPanel";
+
+import clsx from "clsx";
 
 function HistoryDetailPage() {
   const { id } = useParams();
@@ -42,6 +46,7 @@ function HistoryDetailPage() {
   const [notFound, setNotFound] = useState(false);
   const [deleteArmed, setDeleteArmed] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -204,6 +209,23 @@ function HistoryDetailPage() {
             </button>
           )}
 
+          {/* Markdown 내보내기 — 메시지가 있을 때만 의미 있음 */}
+          {messages.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setExportOpen((v) => !v)}
+              className={clsx(
+                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition border",
+                exportOpen
+                  ? "border-sky-400/60 bg-sky-500/10 text-sky-100"
+                  : "border-slate-700 bg-slate-900/60 text-slate-300 hover:border-sky-400/50 hover:text-sky-200",
+              )}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              {exportOpen ? "내보내기 닫기" : "Markdown 내보내기"}
+            </button>
+          )}
+
           {!deleteArmed ? (
             <button
               type="button"
@@ -240,6 +262,15 @@ function HistoryDetailPage() {
 
       {/* 회고 */}
       {summary.retro && <RetrospectiveCard retrospective={summary.retro} />}
+
+      {/* Markdown 내보내기 패널 */}
+      {exportOpen && (
+        <ExportPanel
+          session={session}
+          messages={messages}
+          onClose={() => setExportOpen(false)}
+        />
+      )}
 
       {/* 전체 대화 */}
       <section>
