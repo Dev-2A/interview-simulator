@@ -150,7 +150,7 @@ function InterviewPage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-6 flex flex-col h-[calc(100vh-7rem)] min-h-125">
+    <div className="max-w-3xl mx-auto px-4 py-6 flex flex-col h-[calc(100dvh-7rem)] min-h-125">
       <SessionHeader
         session={session}
         stats={stats}
@@ -281,7 +281,7 @@ function SessionHeader({ session, stats, onWrapUp, thinking, canEnd }) {
           )}
         </div>
       </div>
-      <div className="grid sm:grid-cols-4 gap-3 text-sm">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
         <InfoRow icon={Briefcase} label="직무" value={session.jobRole} />
         <InfoRow icon={Building2} label="회사 타입" value={companyLabel} />
         <InfoRow icon={GraduationCap} label="경력" value={expLabel} />

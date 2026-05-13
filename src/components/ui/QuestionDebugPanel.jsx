@@ -38,7 +38,7 @@ function QuestionDebugPanel({ sessionId, refreshKey }) {
   if (!import.meta.env.DEV) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-40 max-w-sm w-[320px] rounded-lg border border-slate-700 bg-slate-950/90 backdrop-blur shadow-xl text-xs">
+    <div className="hidden sm:block fixed bottom-4 right-4 z-40 w-[320px] max-w-[calc(100vw-2rem)] rounded-lg border border-slate-700 bg-slate-950/90 backdrop-blur shadow-xl text-xs">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

@@ -1,13 +1,48 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
   <head>
     <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0a0f1a" />
+    <meta
+      name="description"
+      content="Claude를 면접관으로 두는 AI 면접 연습 도구. 직무·회사 타입·기술 스택을 설정하면 1:1 모의 면접을 진행하고 회고까지 받습니다. 100% 로컬 처리, BYOK 방식."
+    />
+
+    <!-- Favicon (Vite가 base URL을 자동 prefix) -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>interview-simulator</title>
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta
+      property="og:title"
+      content="🎭 Interview Simulator — AI 면접 연습 도구"
+    />
+    <meta
+      property="og:description"
+      content="Claude와 1:1 모의 면접. 직무·회사·경력에 맞춘 질문 → 답변 → 피드백 → 꼬리 질문 → 회고. 100% 로컬 처리, BYOK."
+    />
+    <meta property="og:image" content="/favicon.svg" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="🎭 Interview Simulator" />
+    <meta
+      name="twitter:description"
+      content="Claude를 면접관으로 두는 AI 면접 연습 도구"
+    />
+
+    <title>🎭 Interview Simulator — AI 면접 연습 도구</title>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      이 도구는 JavaScript가 필요해. 브라우저에서 JavaScript를 활성화해줘.
+    </noscript>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

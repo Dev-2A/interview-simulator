@@ -1,15 +1,114 @@
 @import "tailwindcss";
 
+/* ─── 디자인 토큰 ─────────────────────────────────
+ * Tailwind 클래스(slate-100, sky-400 등)는 그대로 사용하되,
+ * 추후 테마/색 변경이 필요할 때 한 곳에서 조정할 수 있도록 변수도 함께 둔다.
+ */
 :root {
+  /* 배경 계열 */
+  --bg-base: #0a0f1a;
+  --bg-elev-1: rgba(15, 23, 42, 0.5); /* ≈ slate-900/50 */
+  --bg-elev-2: rgba(2, 6, 23, 0.4); /* ≈ slate-950/40 */
+
+  /* 텍스트 계열 */
+  --fg-strong: #f1f5f9;
+  --fg-base: #e5e7eb;
+  --fg-muted: #94a3b8;
+  --fg-subtle: #64748b;
+
+  /* 액센트 */
+  --accent: #38bdf8;
+  --accent-soft: #0ea5e9;
+
+  /* 시맨틱 */
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #fb7185;
+
+  /* 모션 */
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-slow: 280ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* 한국어/영문 시스템 폰트 우선순위.
+     별도 외부 폰트 다운로드 없이 OS의 가장 깔끔한 한글 폰트를 활용한다. */
   font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
-    Arial, sans-serif;
+    -apple-system, BlinkMacSystemFont, "Pretendard Variable", Pretendard,
+    "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+
   color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
+html,
 body {
   margin: 0;
+  /* dvh로 모바일 viewport 점프(특히 iOS Safari URL bar 출몰) 완화 */
   min-height: 100vh;
-  background: #0a0f1a;
-  color: #e5e7eb;
+  min-height: 100dvh;
+  background: var(--bg-base);
+  color: var(--fg-base);
+}
+
+/* ─── 포커스 링 — 키보드 사용자만 시각적 강조 ───────── */
+:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--accent) 60%, transparent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ─── 스크롤바 — 다크 테마 친화 ──────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(51 65 85) transparent;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(51 65 85);
+  border-radius: 4px;
+  transition: background var(--motion-base) var(--ease-out);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(71 85 105);
+}
+
+/* ─── 텍스트 선택 색 ────────────────────────────── */
+::selection {
+  background: color-mix(in oklab, var(--accent) 35%, transparent);
+  color: white;
+}
+
+/* ─── 모션 환경 존중 ────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ─── iOS Safari zoom 방지 ───────────────────────
+ * 폼 input의 글자 크기가 16px 미만이면 iOS가 자동 줌-인 한다.
+ * Tailwind text-sm(14px)을 그대로 두되, iOS만 한정해서 16px 적용.
+ */
+@supports (-webkit-touch-callout: none) {
+  textarea,
+  input[type="text"],
+  input[type="password"],
+  input[type="email"] {
+    font-size: 16px;
+  }
 }

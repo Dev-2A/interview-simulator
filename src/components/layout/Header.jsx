@@ -12,10 +12,15 @@ function Header() {
   return (
     <header className="sticky top-0 z-30 backdrop-blur bg-slate-950/70 border-b border-slate-800">
       <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2 group">
-          <Theater className="w-5 h-5 text-sky-400 group-hover:text-sky-300 transition" />
-          <span className="font-semibold bg-gradient-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent">
-            Interview Simulator
+        <Link
+          to="/"
+          className="flex items-center gap-2 group min-w-0"
+          aria-label="Interview Simulator 홈"
+        >
+          <Theater className="w-5 h-5 text-sky-400 group-hover:text-sky-300 transition shrink-0" />
+          <span className="font-semibold bg-linear-to-r from-sky-400 to-blue-400 bg-clip-text text-transparent truncate">
+            <span className="sm:hidden">Interview Sim</span>
+            <span className="hidden sm:inline">Interview Simulator</span>
           </span>
         </Link>
 

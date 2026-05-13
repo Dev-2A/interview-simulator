@@ -169,7 +169,7 @@ function HistoryDetailPage() {
           {session.jobRole}
         </h1>
 
-        <div className="grid sm:grid-cols-3 gap-3 text-sm">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
           <InfoRow
             icon={Building2}
             label="회사 타입"
